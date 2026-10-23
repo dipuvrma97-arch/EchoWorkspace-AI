@@ -9,4 +9,4 @@ Run on your laptop (voice needs localhost or https):
 
 Publish: push ALL files (keep the icons folder) to a GitHub repo, then Settings > Pages > main / root.
 After you edit index.html, change CACHE in sw.js (echoworkspace-v1 -> v2) so phones get the update.
-Profiles are stored in each person's own browser. There is no server and no password.
+Profiles are stored in each person's own browser. There is no server and no password. 
