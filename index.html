@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#06090a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>EchoWorkspace AI</title>
+<style>
+/* ===== Design tokens: obsidian + emerald ===== */
+:root{--bg:#06090a;--p1:#0c1210;--p2:#111a16;--ln:#1c2a24;--tx:#e8f1ec;--mu:#8ea599;--em:#19e68c;--emd:#0b9e60;--red:#ff6b6b;--amb:#f5b740;--glow:0 0 26px rgba(25,230,140,.35)}
+[data-theme=light]{--bg:#f1f6f3;--p1:#fff;--p2:#f5faf7;--ln:#d3e1d9;--tx:#0d1a14;--mu:#4d6458;--em:#0a9b5d;--emd:#077a49;--red:#d03030;--amb:#a56a00;--glow:0 0 16px rgba(10,155,93,.22)}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(900px 500px at 85% -10%,rgba(25,230,140,.09),transparent),var(--bg);color:var(--tx);font:15px/1.5 "Segoe UI",system-ui,-apple-system,sans-serif}
+h2,h3,h4{margin:0;letter-spacing:-.01em}h2{font-size:1.5rem;margin-bottom:14px}h3{font-size:1.05rem}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--em);outline-offset:2px}
+button{cursor:pointer}
+/* ===== Layout (mobile first) ===== */
+.app{min-height:100vh;display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"top" "main" "feed"}
+.top{grid-area:top;position:sticky;top:0;z-index:5;display:flex;gap:8px;align-items:center;padding:10px 14px;padding-top:calc(10px + env(safe-area-inset-top,0px));background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--ln)}
+main{grid-area:main;padding:18px 14px;min-width:0}
+.feed{grid-area:feed;padding:18px 14px 40px;border-top:1px solid var(--ln)}
+.side{position:fixed;z-index:20;inset:0 auto 0 0;width:240px;background:var(--p1);border-right:1px solid var(--ln);padding:18px 12px;transform:translateX(-100%);transition:transform .25s;display:flex;flex-direction:column;gap:6px}
+.app.open .side{transform:none}
+.scrim{position:fixed;inset:0;z-index:15;background:rgba(0,0,0,.55);display:none}.app.open .scrim{display:block}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 16px;font-size:1.05rem;white-space:nowrap}.brand em{font-style:normal;color:var(--em)}
+.logo{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 30%,#6bffbf,var(--em) 55%,var(--emd));color:#032016;box-shadow:var(--glow);flex:none}
+.side nav{display:flex;flex-direction:column;gap:4px}
+.side nav button{display:flex;gap:12px;align-items:center;padding:10px;border-radius:10px;border:1px solid transparent;background:none;color:var(--mu);text-align:left}
+.side nav button:hover{color:var(--tx);background:var(--p2)}
+.side nav button[aria-current=page]{color:var(--em);background:var(--p2);border-color:var(--ln);box-shadow:inset 3px 0 0 var(--em)}
+.side nav i{font-style:normal;width:20px;text-align:center;flex:none}
+.sidenote{margin-top:auto;color:var(--mu);font-size:.8rem;padding:0 8px}
+@media(min-width:900px){
+ .app{grid-template-columns:230px minmax(0,1fr);grid-template-areas:"side top" "side main" "side feed"}
+ .app.collapsed{grid-template-columns:72px minmax(0,1fr)}
+ .side{grid-area:side;position:sticky;top:0;height:100vh;transform:none;width:auto}
+ .app.collapsed .side span,.app.collapsed .sidenote,.app.collapsed .brand b{display:none}
+ .scrim{display:none!important}main{padding:24px 28px}
+}
+@media(min-width:1200px){
+ .app{grid-template-columns:230px minmax(0,1fr) 310px;grid-template-areas:"side top top" "side main feed"}
+ .app.collapsed{grid-template-columns:72px minmax(0,1fr) 310px}
+ .feed{position:sticky;top:61px;align-self:start;max-height:calc(100vh - 61px);overflow:auto;border-top:0;border-left:1px solid var(--ln);padding-top:24px}
+}
+/* ===== Controls ===== */
+.icon{width:40px;height:40px;border-radius:10px;border:1px solid var(--ln);background:var(--p1)}
+#search{flex:1;min-width:0;height:40px;border-radius:10px;border:1px solid var(--ln);background:var(--p1);padding:0 12px}
+.primary,.ghost,.mini{border-radius:10px;border:1px solid var(--ln);padding:9px 16px;background:var(--p2)}
+.primary{background:linear-gradient(135deg,var(--em),var(--emd));color:#032016;font-weight:600;border:0}
+.primary:hover{box-shadow:var(--glow)}.sm{padding:9px 12px;white-space:nowrap}
+.ghost:hover,.mini:hover{border-color:var(--em)}
+.mini{padding:4px 10px;font-size:.8rem}.mini.danger:hover{border-color:var(--red);color:var(--red)}
+select,input[type=text],input[type=date]{background:var(--p2);border:1px solid var(--ln);border-radius:10px;padding:9px 10px;width:100%}
+.card{background:linear-gradient(180deg,var(--p2),var(--p1));border:1px solid var(--ln);border-radius:16px;padding:16px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.stat b{display:block;font-size:2rem;line-height:1.1;color:var(--em)}.stat span{color:var(--mu);font-size:.85rem}
+.ring{--p:0;width:84px;height:84px;border-radius:50%;background:conic-gradient(var(--em) calc(var(--p)*1%),var(--ln) 0);display:grid;place-items:center}
+.ring span{width:64px;height:64px;border-radius:50%;background:var(--p1);display:grid;place-items:center;font-weight:700}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.bar{height:6px;border-radius:6px;background:var(--ln);overflow:hidden}.bar i{display:block;height:100%;background:var(--em)}
+.mu{color:var(--mu)}.sec{margin-top:18px}
+.filters{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:14px}
+.board{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.col h3{display:flex;justify-content:space-between;margin-bottom:8px;color:var(--mu)}
+.task{border:1px solid var(--ln);background:var(--p1);border-radius:14px;padding:12px;margin-bottom:10px;display:grid;gap:6px}
+.task.done h4{text-decoration:line-through;color:var(--mu)}
+.task.new{animation:flash 1.6s}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.pri{font-size:.75rem;padding:1px 9px;border-radius:20px;border:1px solid}
+.pri.high{color:var(--red)}.pri.medium{color:var(--amb)}.pri.low{color:var(--em)}
+.due{font-size:.8rem;color:var(--mu)}.due.od{color:var(--red)}
+.chip{justify-self:start;font-size:.75rem;padding:1px 9px;border-radius:20px;background:var(--p2);border:1px solid var(--ln);color:var(--mu)}
+.empty{border:1px dashed var(--ln);border-radius:14px;padding:22px;text-align:center;color:var(--mu)}
+.skel{height:84px;border-radius:14px;margin-bottom:10px;background:linear-gradient(90deg,var(--p1),var(--p2),var(--p1));background-size:200% 100%;animation:sh 1.2s infinite}
+.feed h3{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+.live{width:8px;height:8px;border-radius:50%;background:var(--em);box-shadow:0 0 8px var(--em);animation:blink 1.8s infinite}
+#feedList{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+#feedList li{padding-left:14px;border-left:2px solid var(--ln);font-size:.9rem}#feedList small{display:block;color:var(--mu)}
+/* ===== Voice center ===== */
+.voice{display:grid;gap:14px;justify-items:center;text-align:center}
+.mic{position:relative;width:132px;height:132px;border-radius:50%;border:0;color:#032016;display:grid;place-items:center;background:radial-gradient(circle at 35% 30%,#6bffbf,var(--em) 55%,var(--emd));box-shadow:var(--glow),0 0 70px rgba(25,230,140,.22)}
+.mic svg{width:50px;height:50px}
+.mic::before,.mic::after{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid var(--em);opacity:0}
+.mic[data-state=ready]{animation:breathe 3.2s ease-in-out infinite}
+.mic[data-state=listening]::before{animation:ripple 1.4s ease-out infinite}
+.mic[data-state=listening]::after{animation:ripple 1.4s .7s ease-out infinite}
+.mic[data-state=processing]::before{inset:-8px;opacity:1;border-color:transparent;border-top-color:var(--em);animation:spin .9s linear infinite}
+.mic[data-state=success]{animation:pop .5s}
+.mic[data-state=error]{background:radial-gradient(circle at 35% 30%,#ffb0b0,var(--red) 60%,#9c2525);box-shadow:0 0 34px rgba(255,107,107,.45)}
+.badge{display:inline-block;padding:2px 12px;border-radius:20px;border:1px solid var(--em);color:var(--em);font-size:.8rem}
+.badge[data-s=error]{color:var(--red);border-color:var(--red)}.badge[data-s=listening]{background:rgba(25,230,140,.14)}
+.tbox,#preview,.cmd,.demo{width:100%;max-width:640px;text-align:left}
+.tbox{min-height:76px;padding:12px;border-radius:12px;background:var(--p1);border:1px solid var(--ln)}.tbox small{color:var(--mu)}.tbox p{margin:4px 0 0;font-size:1.1rem}
+.prev{border:1px solid var(--em);border-radius:14px;padding:14px;background:rgba(25,230,140,.06);display:grid;gap:8px}
+.prev.err{border-color:var(--red);background:rgba(255,107,107,.07)}
+.prev ul{margin:0;padding-left:18px;color:var(--mu)}
+.cmd{display:flex;gap:8px}.demo{display:grid;gap:6px;color:var(--mu)}
+.sim{color:var(--amb)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}.chips button{border-radius:20px;border:1px solid var(--ln);background:var(--p2);padding:5px 12px;font-size:.85rem}.chips button:hover{border-color:var(--em)}
+.hero{display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:22px;border-radius:20px;border:1px solid var(--ln);background:radial-gradient(500px 220px at 90% 0%,rgba(25,230,140,.2),transparent),linear-gradient(180deg,var(--p2),var(--p1));margin-bottom:14px}
+.hero h2{font-size:1.9rem;margin:2px 0 6px}.hero p{margin:0 0 14px;max-width:46ch}
+.ring.big{width:112px;height:112px;box-shadow:var(--glow)}.ring.big span{width:86px;height:86px;font-size:1.4rem}
+.stat{position:relative;overflow:hidden}.stat::before{content:"";position:absolute;inset:0 0 auto;height:3px;background:var(--c,var(--em))}.stat i{font-style:normal;position:absolute;right:14px;top:12px;font-size:1.3rem;opacity:.8}
+.two{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-top:12px}
+.wk{display:flex;gap:8px;align-items:flex-end;height:120px;margin-top:10px}.wk div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;height:100%;font-size:.75rem;color:var(--mu)}.wk i{width:100%;border-radius:6px 6px 2px 2px;background:linear-gradient(var(--em),var(--emd));min-height:3px;transition:height .6s}
+.pb{display:grid;grid-template-columns:64px 1fr 24px;gap:8px;align-items:center;margin-top:10px;font-size:.85rem}
+.av{width:84px;height:84px;border-radius:50%;display:grid;place-items:center;font-size:1.9rem;font-weight:700;color:#032016;background:radial-gradient(circle at 35% 30%,#6bffbf,var(--em) 55%,var(--emd));box-shadow:var(--glow);flex:none}
+#topAv{font-weight:700;color:var(--em)}
+[data-theme=light] body{background:radial-gradient(900px 500px at 85% -10%,rgba(10,155,93,.13),transparent),var(--bg)}
+[data-theme=light] .card,[data-theme=light] .task{box-shadow:0 1px 2px rgba(13,26,20,.06),0 8px 22px rgba(13,26,20,.05)}
+[data-theme=light] .hero{background:radial-gradient(500px 220px at 90% 0%,rgba(10,155,93,.18),transparent),linear-gradient(180deg,#fff,#f2f9f5)}
+[data-theme=light] .primary,[data-theme=light] .mic,[data-theme=light] .av,[data-theme=light] .logo,[data-theme=light] .mini-av{color:#fff}
+[data-theme=light] .mic{box-shadow:var(--glow),0 8px 30px rgba(10,155,93,.25)}
+img.av{object-fit:cover}#topAv{padding:0;overflow:hidden}#topAv img{width:100%;height:100%;object-fit:cover}
+.ftime{font-size:4.2rem;font-weight:700;letter-spacing:.02em;color:var(--em);font-variant-numeric:tabular-nums;text-shadow:var(--glow)}
+.chips button[aria-pressed=true]{border-color:var(--em);color:var(--em)}.fsel{display:grid;gap:4px;width:100%;max-width:360px;text-align:left;color:var(--mu)}
+.login{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:16px;overflow:auto;background:radial-gradient(700px 400px at 50% 0%,rgba(25,230,140,.16),var(--bg))}.login[hidden]{display:none}
+.login .card{width:min(440px,100%);display:grid;gap:14px}.ulist{display:grid;gap:8px}.ulist button{display:flex;gap:10px;align-items:center;text-align:left}
+.mini-av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:.8rem;font-weight:700;color:#032016;background:linear-gradient(135deg,var(--em),var(--emd));flex:none}
+@media(max-width:520px){#newTask{display:none}}
+/* ===== Dialog + toasts ===== */
+dialog{background:var(--p1);color:var(--tx);border:1px solid var(--ln);border-radius:16px;width:min(420px,92vw);padding:20px}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+dialog form{display:grid;gap:12px}dialog label{display:grid;gap:4px;font-size:.85rem;color:var(--mu)}
+.dlgbtn{display:flex;gap:8px;justify-content:flex-end}.dlgbtn .danger{background:var(--red);color:#fff;border:0}
+#toasts{position:fixed;z-index:50;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));display:grid;gap:8px;max-width:calc(100vw - 24px)}
+.toast{background:var(--p2);border:1px solid var(--em);border-radius:12px;padding:10px 14px;box-shadow:0 8px 30px rgba(0,0,0,.4)}.toast.error{border-color:var(--red)}
+.set{display:grid;gap:12px;max-width:560px}.set label{display:grid;gap:4px}
+@keyframes breathe{50%{box-shadow:0 0 40px rgba(25,230,140,.6),0 0 90px rgba(25,230,140,.3)}}
+@keyframes ripple{from{transform:scale(1);opacity:.8}to{transform:scale(1.7);opacity:0}}
+@keyframes spin{to{transform:rotate(360deg)}}@keyframes pop{40%{transform:scale(1.12)}}
+@keyframes blink{50%{opacity:.35}}@keyframes sh{to{background-position:-200% 0}}
+@keyframes flash{0%,40%{border-color:var(--em);box-shadow:var(--glow)}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+ <aside class="side" id="side" aria-label="Main navigation">
+  <div class="brand"><span class="logo">◉</span><b>Echo<em>Workspace</em> AI</b></div>
+  <nav id="nav">
+   <button data-view="dashboard"><i>▦</i><span>Dashboard</span></button>
+   <button data-view="voice"><i>◉</i><span>Voice Center</span></button>
+   <button data-view="tasks"><i>☰</i><span>Task pipeline</span></button>
+   <button data-view="focus"><i>◷</i><span>Focus mode</span></button>
+   <button data-view="projects"><i>❖</i><span>Projects</span></button>
+   <button data-view="profile"><i>☺</i><span>Profile</span></button>
+   <button data-view="settings"><i>⚙</i><span>Settings</span></button>
+  </nav>
+  <p class="sidenote">Everything is saved in this browser only.</p>
+ </aside>
+ <div class="scrim" id="scrim"></div>
+ <header class="top">
+  <button class="icon" id="menuBtn" aria-label="Toggle sidebar" aria-expanded="false">☰</button>
+  <input id="search" type="search" placeholder="Search tasks and projects" aria-label="Search tasks and projects">
+  <button class="primary sm" id="topMic">● Speak</button>
+  <button class="ghost sm" id="installBtn" hidden>Install</button>
+  <button class="ghost sm" id="newTask">+ Task</button>
+  <button class="icon" id="topAv" data-act="goto" data-id="profile" aria-label="Open profile"></button>
+ </header>
+ <main id="main">
+  <section id="v-dashboard" class="view"></section>
+  <section id="v-voice" class="view" hidden>
+   <h2>Voice Command Center</h2>
+   <div class="card voice">
+    <button class="mic" id="mic" data-state="ready" aria-label="Start or stop listening">
+     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>
+    </button>
+    <div><span class="badge" id="vBadge" data-s="ready">ready</span><p id="vState" role="status" aria-live="polite">Ready. Tap the mic and speak.</p></div>
+    <div class="tbox"><small id="tSrc">Live transcript</small><p id="transcript" aria-live="polite">Your words appear here as you speak.</p></div>
+    <div id="preview" aria-live="polite"></div>
+    <div id="undoBar"></div>
+    <form id="cmdForm" class="cmd"><input id="cmdInput" type="text" placeholder="Or type a command, e.g. add call mentor tomorrow" aria-label="Type a command" autocomplete="off"><button class="primary">Run</button></form>
+    <div class="demo"><button class="ghost" id="demoBtn" type="button">▶ Run simulated demo</button><small><span class="sim">Simulated:</span> types a scripted phrase for you. No microphone and no AI are used. Every command, spoken or typed, is read by the same local rule-based parser in your browser.</small></div>
+   </div>
+   <div class="card sec"><h3>Commands it understands</h3><p class="mu">Tap an example to put it in the box.</p><div class="chips" id="examples"></div></div>
+  </section>
+  <section id="v-tasks" class="view" hidden></section>
+  <section id="v-focus" class="view" hidden></section>
+  <section id="v-projects" class="view" hidden></section>
+  <section id="v-profile" class="view" hidden></section>
+  <section id="v-settings" class="view" hidden></section>
+ </main>
+ <aside class="feed" aria-label="Live activity"><h3><span class="live"></span>Live activity</h3><ul id="feedList"></ul></aside>
+</div>
+<dialog id="dlg"><form id="dlgForm"></form></dialog>
+<div id="toasts" aria-live="polite"></div>
+<input type="file" id="importFile" accept="application/json" hidden>
+<input type="file" id="photoFile" accept="image/*" hidden>
+<div class="login" id="login" hidden><div class="card">
+ <div class="brand" style="padding:0"><span class="logo">◉</span><b>Echo<em>Workspace</em> AI</b></div>
+ <h2 style="margin:0">Who’s using EchoWorkspace?</h2>
+ <div class="ulist" id="loginUsers"></div>
+ <form id="loginForm" style="display:grid;gap:10px"><label class="mu" for="loginName">Your name</label><input id="loginName" type="text" maxlength="40" required placeholder="e.g. Deepu Verma" autocomplete="off">
+  <label class="row" style="justify-content:flex-start"><input type="checkbox" id="loginSample" checked> Start with sample tasks</label><button class="primary">Continue</button></form>
+ <p class="mu" style="margin:0;font-size:.85rem">No password. Every name gets its own workspace, saved on this device only. Type an existing name to open that workspace.</p></div></div>
+
+<script>
+'use strict';
+/* =========================================================
+   EchoWorkspace AI - one file, no libraries.
+   Sections: 1 helpers · 2 data & storage · 3 actions ·
+   4 rendering · 5 forms · 6 command parser · 7 voice · 8 wiring
+   ========================================================= */
+
+/* ---------- 1. Helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Math.random().toString(36).slice(2, 9);
+const pad = n => String(n).padStart(2, '0');
+const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const addDays = n => { const d = new Date(); d.setDate(d.getDate() + n); return iso(d); };
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const STATUS = { todo: 'Pending', doing: 'Active', done: 'Completed' };
+function rel(ts) {
+  const s = (Date.now() - ts) / 1000;
+  if (s < 45) return 'just now';
+  if (s < 3600) return Math.round(s / 60) + ' min ago';
+  if (s < 86400) return Math.round(s / 3600) + ' h ago';
+  return new Date(ts).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+function toast(msg, type = '') {
+  const t = document.createElement('div');
+  t.className = 'toast ' + type; t.textContent = msg;
+  $('#toasts').append(t); setTimeout(() => t.remove(), 3800);
+}
+
+/* ---------- 2. Accounts, data & storage ---------- */
+// No server: every person gets their own workspace saved on THIS device. A name is not a password.
+const K = { users: 'ew2:users', cur: 'ew2:cur', data: id => 'ew2:u:' + id, old: 'echoworkspace.v1' };
+const BLANK = { name: '', headline: '', college: '', location: '', skills: '', bio: '', github: '', linkedin: '', portfolio: '', resume: '', photo: '' };
+const OWNER = { headline: 'BCA student · Aspiring Data Analyst', college: 'Rawal Institute of Management, MDU Rohtak', location: 'Faridabad, Haryana', skills: 'Excel, Power BI, Word, PowerPoint, Canva', github: 'https://github.com/dipuvrma97-arch', linkedin: 'https://www.linkedin.com/in/deepu-verma-analyst46' };
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const initials = n => n.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+function readJSON(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
+const getUsers = () => { const u = readJSON(K.users, []); return Array.isArray(u) ? u.filter(x => x && x.id && typeof x.name === 'string') : []; };
+function cleanProfile(p, name) {
+  p = p || {};
+  const t = (v, n = 120) => typeof v === 'string' ? v.slice(0, n) : '';
+  const link = v => typeof v === 'string' && /^https?:\/\//.test(v.trim()) ? v.trim().slice(0, 200) : '';
+  const photo = typeof p.photo === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(p.photo) && p.photo.length < 150000 ? p.photo : '';
+  return { name: t(p.name || name, 60).trim() || 'Friend', headline: t(p.headline), college: t(p.college), location: t(p.location), skills: t(p.skills, 200), bio: t(p.bio, 240), github: link(p.github), linkedin: link(p.linkedin), portfolio: link(p.portfolio), resume: link(p.resume), photo };
+}
+const profileFor = name => ({ ...BLANK, ...(name.trim().toLowerCase() === 'deepu verma' ? OWNER : {}), name });
+function seed(name) {
+  const T = (title, priority, due, status, projectId, x = {}) => ({ id: uid(), title, priority, due, time: '', repeat: '', status, projectId, created: Date.now(), completedAt: status === 'done' ? Date.now() - 864e5 : 0, ...x });
+  return {
+    projects: [{ id: 'p1', name: 'Hackathon Demo' }, { id: 'p2', name: 'Portfolio Site' }, { id: 'p3', name: 'Study Plan' }],
+    tasks: [
+      T('Record 60-second demo video', 'high', addDays(1), 'doing', 'p1', { time: '17:00' }),
+      T('Rehearse the pitch', 'high', addDays(0), 'todo', 'p1'),
+      T('Polish README', 'medium', addDays(2), 'todo', 'p1'),
+      T('Weekly review', 'medium', addDays(3), 'todo', '', { time: '18:00', repeat: 'weekly' }),
+      T('Update LinkedIn headline', 'low', addDays(4), 'todo', 'p2'),
+      T('Publish portfolio to GitHub Pages', 'high', addDays(-1), 'done', 'p2'),
+      T('Practice SQL joins', 'medium', addDays(5), 'todo', 'p3'),
+      T('Build Excel pivot dashboard', 'low', '', 'todo', 'p3')
+    ],
+    activity: [{ id: uid(), text: 'Sample workspace created', time: Date.now() }], focus: [], profile: profileFor(name), prefs: { theme: 'dark', speak: true, lang: 'en-IN' }
+  };
+}
+const emptyData = name => ({ projects: [], tasks: [], activity: [{ id: uid(), text: 'Workspace created', time: Date.now() }], focus: [], profile: profileFor(name), prefs: { theme: 'dark', speak: true, lang: 'en-IN' } });
+// Rebuilds saved data field by field so broken or edited data can't crash the app.
+function sanitize(d, name = 'Friend') {
+  if (!d || !Array.isArray(d.tasks) || !Array.isArray(d.projects)) return null;
+  const projects = d.projects.filter(p => p && p.id && typeof p.name === 'string' && p.name.trim()).map(p => ({ id: String(p.id), name: p.name.slice(0, 60) }));
+  const ids = new Set(projects.map(p => p.id));
+  const tasks = d.tasks.filter(t => t && t.id && typeof t.title === 'string' && t.title.trim()).map(t => ({
+    id: String(t.id), title: t.title.slice(0, 140),
+    priority: ['low', 'medium', 'high'].includes(t.priority) ? t.priority : 'medium',
+    due: /^\d{4}-\d{2}-\d{2}$/.test(t.due) ? t.due : '', time: TIME_RE.test(t.time) ? t.time : '',
+    repeat: ['daily', 'weekly', 'monthly'].includes(t.repeat) ? t.repeat : '',
+    status: ['todo', 'doing', 'done'].includes(t.status) ? t.status : 'todo',
+    projectId: ids.has(t.projectId) ? t.projectId : '', created: +t.created || Date.now(), completedAt: +t.completedAt || 0
+  }));
+  const activity = (Array.isArray(d.activity) ? d.activity : []).filter(a => a && typeof a.text === 'string').slice(0, 50).map(a => ({ id: String(a.id || uid()), text: a.text, time: +a.time || Date.now() }));
+  const focus = (Array.isArray(d.focus) ? d.focus : []).filter(x => x && +x.t > 0 && +x.min > 0).slice(0, 300).map(x => ({ t: +x.t, min: Math.min(180, +x.min), task: String(x.task || '').slice(0, 140) }));
+  const p = d.prefs || {};
+  return { projects, tasks, activity, focus, profile: cleanProfile(d.profile, name), prefs: { theme: p.theme === 'light' ? 'light' : 'dark', speak: p.speak !== false, lang: ['en-IN', 'hi-IN', 'hinglish'].includes(p.lang) ? p.lang : 'en-IN' } };
+}
+let S = null, CUR = null; // S = the signed-in person's workspace
+function save() { if (!CUR) return; try { localStorage.setItem(K.data(CUR), JSON.stringify(S)); } catch (e) { toast('Could not save. Browser storage is full or blocked.', 'error'); } }
+const UI = { view: 'dashboard', q: '', fPri: '', fProj: '', sort: 'due', flash: '', loading: false };
+const projName = id => (S.projects.find(p => p.id === id) || {}).name || '';
+
+function signIn(id) {
+  const u = getUsers().find(x => x.id === id); if (!u) return showLogin();
+  CUR = id; localStorage.setItem(K.cur, id);
+  S = sanitize(readJSON(K.data(id), null), u.name) || emptyData(u.name);
+  Object.assign(UI, { q: '', fPri: '', fProj: '', flash: '' }); $('#search').value = '';
+  $('#login').hidden = true; $('#app').inert = false; clearUndo(); render(); setView('dashboard');
+}
+function createUser(name, sample) {
+  name = name.trim().replace(/\s+/g, ' ').slice(0, 40); if (!name) return;
+  try {
+    const users = getUsers(); let u = users.find(x => x.name.toLowerCase() === name.toLowerCase());
+    if (!u) { u = { id: uid(), name }; users.push(u); localStorage.setItem(K.users, JSON.stringify(users)); localStorage.setItem(K.data(u.id), JSON.stringify(sample ? seed(name) : emptyData(name))); }
+    signIn(u.id);
+  } catch (e) { toast('Could not create the profile. Browser storage is blocked.', 'error'); }
+}
+function showLogin() {
+  $('#loginUsers').innerHTML = getUsers().map(u => `<button class="ghost" data-login="${esc(u.id)}"><span class="mini-av">${esc(initials(u.name))}</span>${esc(u.name)}</button>`).join('');
+  $('#loginName').value = ''; $('#login').hidden = false; $('#app').inert = true;
+}
+function signOut() { stopFocus(); localStorage.removeItem(K.cur); CUR = null; S = null; showLogin(); }
+function deleteUser() {
+  const id = CUR; stopFocus();
+  localStorage.setItem(K.users, JSON.stringify(getUsers().filter(u => u.id !== id))); localStorage.removeItem(K.data(id));
+  signOut(); toast('Profile deleted from this device');
+}
+
+/* ---------- 3. Actions (every change goes through commit) ---------- */
+function commit() { save(); render(); }
+function log(text) { S.activity.unshift({ id: uid(), text, time: Date.now() }); S.activity = S.activity.slice(0, 50); }
+function addTask(d) {
+  const t = { id: uid(), title: d.title, priority: d.priority || 'medium', due: d.due || '', time: d.time || '', repeat: d.repeat || '', status: d.status || 'todo', projectId: d.projectId || '', created: Date.now(), completedAt: d.status === 'done' ? Date.now() : 0 };
+  S.tasks.unshift(t); UI.flash = t.id;
+  log(`Task created: “${t.title}”` + (t.projectId ? ` in ${projName(t.projectId)}` : '')); commit(); return t;
+}
+function updateTask(id, patch) {
+  const t = S.tasks.find(x => x.id === id); if (!t) return;
+  const was = t.status; Object.assign(t, patch);
+  if (t.status === 'done' && was !== 'done') t.completedAt = Date.now(); else if (t.status !== 'done') t.completedAt = 0;
+  log(`Task updated: “${t.title}”`); commit();
+}
+function nextDue(due, repeat) {
+  const d = new Date((due || iso(new Date())) + 'T00:00');
+  if (repeat === 'daily') d.setDate(d.getDate() + 1); else if (repeat === 'weekly') d.setDate(d.getDate() + 7); else d.setMonth(d.getMonth() + 1);
+  return iso(d);
+}
+function setStatus(id, status) {
+  const t = S.tasks.find(x => x.id === id); if (!t) return;
+  const was = t.status; t.status = status; t.completedAt = status === 'done' ? Date.now() : 0;
+  log({ done: 'Completed', doing: 'Started', todo: 'Reopened' }[status] + `: “${t.title}”`);
+  if (status === 'done' && was !== 'done' && t.repeat) { // repeating task: schedule the next one
+    const nt = { ...t, id: uid(), status: 'todo', completedAt: 0, due: nextDue(t.due, t.repeat), created: Date.now() };
+    S.tasks.unshift(nt); log(`Next ${t.repeat} repeat scheduled for ${nt.due}: “${t.title}”`); toast(`Repeats ${t.repeat}. Next due ${nt.due}`);
+  }
+  commit();
+}
+function removeTask(id) {
+  const t = S.tasks.find(x => x.id === id); if (!t) return;
+  S.tasks = S.tasks.filter(x => x.id !== id); log(`Task deleted: “${t.title}”`); commit();
+}
+function addProject(name) { const p = { id: uid(), name: name.trim().slice(0, 60) }; S.projects.push(p); log(`Project created: ${p.name}`); commit(); return p.id; }
+function renameProject(id, name) { const p = S.projects.find(x => x.id === id); if (!p) return; log(`Project renamed: ${p.name} → ${name}`); p.name = name; commit(); }
+function removeProject(id) {
+  const p = S.projects.find(x => x.id === id); if (!p) return;
+  S.tasks.forEach(t => { if (t.projectId === id) t.projectId = ''; });
+  S.projects = S.projects.filter(x => x.id !== id); if (UI.fProj === id) UI.fProj = '';
+  log(`Project deleted: ${p.name} (its tasks were kept)`); commit();
+}
+// Streak = consecutive days (ending today, or yesterday) with at least one completed task.
+function streak() {
+  const days = new Set(S.tasks.filter(t => t.completedAt).map(t => iso(new Date(t.completedAt)))), d = new Date(); let n = 0;
+  if (!days.has(iso(d))) d.setDate(d.getDate() - 1);
+  while (days.has(iso(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+function weekStats() {
+  const from = Date.now() - 7 * 864e5, done = S.tasks.filter(t => t.completedAt >= from);
+  const per = [...Array(7)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() - 6 + i); const k = iso(d); return { l: i === 6 ? 'Today' : d.toLocaleDateString(undefined, { weekday: 'short' }), c: done.filter(t => iso(new Date(t.completedAt)) === k).length }; });
+  return { done: done.length, created: S.tasks.filter(t => t.created >= from).length, per, best: per.reduce((a, b) => b.c > a.c ? b : a),
+    mins: S.focus.filter(x => x.t >= from).reduce((a, x) => a + x.min, 0), over: S.tasks.filter(t => t.status !== 'done' && t.due && t.due < iso(new Date())).length };
+}
+const reportText = () => { const w = weekStats(); return `EchoWorkspace AI · weekly report for ${S.profile.name}\nTasks completed: ${w.done}\nTasks added: ${w.created}\nFocus time: ${w.mins} min\nBest day: ${w.best.c ? w.best.l + ' (' + w.best.c + ')' : 'none yet'}\nCurrent streak: ${streak()} day(s)\nOverdue right now: ${w.over}`; };
+// Focus timer: uses an end timestamp so it stays accurate even if the tab is throttled.
+const F = { mins: 25, left: 1500, end: 0, id: null, task: '' };
+const fmt = n => `${pad(Math.floor(n / 60))}:${pad(n % 60)}`;
+function tick() {
+  F.left = Math.max(0, Math.round((F.end - Date.now()) / 1000));
+  const el = $('#fTime'); if (el) el.textContent = fmt(F.left);
+  document.title = F.id ? `${fmt(F.left)} · Focus` : 'EchoWorkspace AI';
+  if (!F.left) finishFocus();
+}
+function toggleFocus() {
+  if (F.id) { clearInterval(F.id); F.id = null; renderFocus(); return; }
+  F.end = Date.now() + F.left * 1000; F.id = setInterval(tick, 500); renderFocus();
+}
+function stopFocus() { clearInterval(F.id); F.id = null; F.left = F.mins * 60; document.title = 'EchoWorkspace AI'; }
+function finishFocus() {
+  const task = S.tasks.find(t => t.id === F.task); stopFocus();
+  S.focus.unshift({ t: Date.now(), min: F.mins, task: task ? task.title : '' }); S.focus = S.focus.slice(0, 300);
+  log(`Focus session done: ${F.mins} min` + (task ? ` on “${task.title}”` : ''));
+  toast(`Focus session complete: ${F.mins} minutes. Take a short break.`); speak('Focus session complete'); if (navigator.vibrate) navigator.vibrate(300);
+  commit();
+}
+
+/* ---------- 4. Rendering ---------- */
+const byDue = (a, b) => (a.due || '9999') < (b.due || '9999') ? -1 : 1;
+const fmtTime = t => t ? new Date('2000-01-01T' + t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '';
+function dueLabel(t) {
+  const at = t.time ? ' · ' + fmtTime(t.time) : '';
+  if (!t.due) return 'No date' + at;
+  const diff = Math.round((new Date(t.due + 'T00:00') - new Date(iso(new Date()) + 'T00:00')) / 864e5);
+  if (diff === 0) return 'Due today' + at; if (diff === 1) return 'Due tomorrow' + at;
+  if (diff < 0 && t.status !== 'done') return `Overdue ${-diff}d` + at;
+  return 'Due ' + new Date(t.due + 'T00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + at;
+}
+const mb = (act, label, id, cls = '') => `<button class="mini ${cls}" data-act="${act}" data-id="${id}">${label}</button>`;
+function card(t) {
+  const od = t.due && t.due < iso(new Date()) && t.status !== 'done';
+  return `<article class="task ${t.status} ${UI.flash === t.id ? 'new' : ''}"><div class="row"><span class="pri ${t.priority}">${t.priority}</span><span class="due ${od ? 'od' : ''}">${dueLabel(t)}</span></div>
+  <h4>${esc(t.title)}</h4><div class="chips">${t.projectId ? `<span class="chip">${esc(projName(t.projectId))}</span>` : ''}${t.repeat ? `<span class="chip">↻ ${t.repeat}</span>` : ''}</div>
+  <div class="acts">${t.status === 'todo' ? mb('start', 'Start', t.id) : ''}${mb('toggle', t.status === 'done' ? 'Reopen' : 'Complete', t.id)}${mb('edit', 'Edit', t.id)}${mb('del', 'Delete', t.id, 'danger')}</div></article>`;
+}
+function renderDashboard() {
+  const n = s => S.tasks.filter(t => t.status === s).length, today = iso(new Date());
+  const total = S.tasks.length, pct = total ? Math.round(n('done') / total * 100) : 0;
+  const open = S.tasks.filter(t => t.status !== 'done'), next = [...open].sort(byDue).slice(0, 5);
+  const over = open.filter(t => t.due && t.due < today).length, dueToday = open.filter(t => t.due === today).length;
+  const h = new Date().getHours(), greet = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; // follows the clock
+  const msg = over ? `${over} overdue and ${dueToday} due today. Say “complete …” as you finish them.` : dueToday ? `${dueToday} task${dueToday === 1 ? ' is' : 's are'} due today.` : open.length ? 'Nothing is due today. A good time to plan ahead.' : 'You’re all caught up.';
+  const days = [...Array(7)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() + i); const k = iso(d); return { l: i ? d.toLocaleDateString(undefined, { weekday: 'short' }) : 'Today', c: open.filter(t => t.due === k).length }; });
+  const mx = Math.max(1, ...days.map(d => d.c)), w = weekStats(), mw = Math.max(1, ...w.per.map(d => d.c)), st = streak();
+  const bars = (arr, m) => arr.map(d => `<div><span>${d.c || ''}</span><i style="height:${d.c / m * 55}%"></i><span>${d.l}</span></div>`).join('');
+  const pb = (l, p) => { const c = open.filter(t => t.priority === p).length; return `<div class="pb"><span>${l}</span><div class="bar"><i style="width:${open.length ? c / open.length * 100 : 0}%"></i></div><b>${c}</b></div>`; };
+  $('#v-dashboard').innerHTML = UI.loading ? '<div class="skel"></div><div class="skel"></div><div class="skel"></div>' : `
+  <div class="hero"><div><p class="mu">${new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</p><h2>${greet}, ${esc(S.profile.name.split(' ')[0])}</h2><p>${msg}</p>
+   <p><span class="chip">🔥 ${st ? st + '-day streak' : 'Complete a task today to start a streak'}</span></p>
+   <div class="acts"><button class="primary" data-act="goto" data-id="voice">● Speak a command</button><button class="ghost" data-act="goto" data-id="focus">◷ Start focus</button></div></div>
+   <div class="ring big" style="--p:${pct}" title="${pct}% complete"><span>${pct}%</span></div></div>
+  <div class="grid">
+   <div class="card stat"><i>⚡</i><b>${n('doing')}</b><span>Active tasks</span></div>
+   <div class="card stat" style="--c:var(--amb)"><i>◔</i><b>${n('todo')}</b><span>Pending tasks</span></div>
+   <div class="card stat"><i>✓</i><b>${n('done')}</b><span>Completed tasks</span></div>
+   <div class="card stat" style="--c:var(--red)"><i>!</i><b>${over}</b><span>Overdue</span></div></div>
+  <div class="two"><div class="card"><div class="row"><h3>Your week</h3><button class="mini" data-act="copyReport">Copy report</button></div><div class="wk">${bars(w.per, mw)}</div>
+   <p class="mu" style="margin:8px 0 0">${w.done} completed · ${w.mins} focus min · ${w.best.c ? 'best day ' + w.best.l : 'no completions yet'}</p></div>
+   <div class="card"><h3>Due in the next 7 days</h3><div class="wk">${bars(days, mx)}</div></div></div>
+  <div class="two"><div class="card"><h3>Open tasks by priority</h3>${pb('High', 'high')}${pb('Medium', 'medium')}${pb('Low', 'low')}</div>
+   <div class="card"><h3>Up next</h3><div style="margin-top:10px">${next.length ? next.map(card).join('') : '<div class="empty">Nothing waiting. Add a task by voice or with + Task.</div>'}</div></div></div>`;
+}
+function renderFocus() {
+  const today = iso(new Date()), sum = a => a.reduce((x, f) => x + f.min, 0);
+  const open = S.tasks.filter(t => t.status !== 'done');
+  $('#v-focus').innerHTML = `<h2>Focus mode</h2><div class="card voice">
+   <div class="ftime" id="fTime" role="timer">${fmt(F.left)}</div>
+   <div class="chips">${[15, 25, 50].map(m => `<button data-act="fMins" data-id="${m}" aria-pressed="${F.mins === m}" ${F.id ? 'disabled' : ''}>${m} min</button>`).join('')}</div>
+   <label class="fsel">Working on<select data-ft><option value="">Nothing specific</option>${open.map(t => `<option value="${t.id}" ${t.id === F.task ? 'selected' : ''}>${esc(t.title)}</option>`).join('')}</select></label>
+   <div class="acts"><button class="primary" data-act="fToggle">${F.id ? 'Pause' : F.left < F.mins * 60 ? 'Resume' : 'Start focus'}</button><button class="ghost" data-act="fReset">Reset</button></div>
+   <p class="mu">Focused today: ${sum(S.focus.filter(f => iso(new Date(f.t)) === today))} min · Last 7 days: ${weekStats().mins} min</p></div>`;
+}
+function renderProfile() {
+  const p = S.profile, done = S.tasks.filter(t => t.status === 'done').length, total = S.tasks.length, ini = initials(p.name);
+  const skills = p.skills.split(',').map(x => x.trim()).filter(Boolean);
+  const link = (u, l) => u ? `<a class="chip" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${l}</a>` : '';
+  $('#topAv').innerHTML = p.photo ? `<img src="${esc(p.photo)}" alt="">` : esc(ini); $('#topAv').setAttribute('aria-label', 'Open profile of ' + p.name);
+  const links = link(p.github, 'GitHub') + link(p.linkedin, 'LinkedIn') + link(p.portfolio, 'Portfolio') + link(p.resume, 'Resume');
+  $('#v-profile').innerHTML = `<div class="row"><h2>Profile</h2><div class="acts"><button class="primary" data-act="pfEdit">Edit profile</button><button class="ghost" data-act="signOut">Switch user</button></div></div>
+  <div class="card row" style="justify-content:flex-start;gap:18px">${p.photo ? `<img class="av" src="${esc(p.photo)}" alt="Profile photo">` : `<div class="av">${esc(ini)}</div>`}
+   <div><h3 style="font-size:1.4rem">${esc(p.name)}</h3><p class="mu" style="margin:2px 0">${esc(p.headline) || 'Add a headline with Edit profile'}</p><p class="mu" style="margin:0 0 8px">${esc(p.college)}${p.college && p.location ? ' · ' : ''}${esc(p.location)}</p>
+   <div class="acts">${mb('pfPhoto', 'Upload photo', '')}${p.photo ? mb('pfPhotoDel', 'Remove photo', '') : ''}</div></div></div>
+  ${p.bio ? `<div class="card sec"><h3>About</h3><p>${esc(p.bio)}</p></div>` : ''}
+  <div class="two"><div class="card"><h3>Skills</h3><div class="chips" style="margin-top:10px">${skills.map(x => `<span class="chip">${esc(x)}</span>`).join('') || '<span class="mu">Add skills with Edit profile.</span>'}</div></div>
+   <div class="card"><h3>Resume and portfolio</h3><div class="chips" style="margin-top:10px">${links || '<span class="mu">Add your links with Edit profile.</span>'}</div></div></div>
+  <div class="grid sec"><div class="card stat"><i>🔥</i><b>${streak()}</b><span>Day streak</span></div><div class="card stat"><i>✓</i><b>${done}</b><span>Tasks completed</span></div><div class="card stat"><i>❖</i><b>${S.projects.length}</b><span>Projects</span></div><div class="card stat"><i>%</i><b>${total ? Math.round(done / total * 100) : 0}%</b><span>Completion rate</span></div></div>`;
+}
+function renderExamples() {
+  const ex = { 'en-IN': EXAMPLES, 'hi-IN': EXAMPLES_HI, hinglish: EXAMPLES_HG }[S.prefs.lang] || EXAMPLES;
+  $('#examples').innerHTML = ex.map(x => `<button type="button">${esc(x)}</button>`).join('');
+}
+function renderTasks() {
+  const q = UI.q.trim().toLowerCase(), rank = { high: 0, medium: 1, low: 2 };
+  const list = S.tasks.filter(t => (!q || t.title.toLowerCase().includes(q) || projName(t.projectId).toLowerCase().includes(q)) && (!UI.fPri || t.priority === UI.fPri) && (!UI.fProj || t.projectId === UI.fProj))
+    .sort((a, b) => UI.sort === 'priority' ? rank[a.priority] - rank[b.priority] : UI.sort === 'newest' ? b.created - a.created : byDue(a, b));
+  const opt = (v, l, cur) => `<option value="${esc(v)}" ${v === cur ? 'selected' : ''}>${esc(l)}</option>`;
+  const cols = ['todo', 'doing', 'done'].map(s => { const items = list.filter(t => t.status === s);
+    return `<div class="col"><h3>${STATUS[s]} <span>${items.length}</span></h3>${items.map(card).join('') || '<div class="empty">None here</div>'}</div>`; }).join('');
+  $('#v-tasks').innerHTML = `<h2>Task pipeline</h2>
+  <div class="filters">
+   <select id="fPri" data-f="fPri" aria-label="Filter by priority">${opt('', 'All priorities', UI.fPri)}${['high', 'medium', 'low'].map(p => opt(p, cap(p), UI.fPri)).join('')}</select>
+   <select id="fProj" data-f="fProj" aria-label="Filter by project">${opt('', 'All projects', UI.fProj)}${S.projects.map(p => opt(p.id, p.name, UI.fProj)).join('')}</select>
+   <select id="sort" data-f="sort" aria-label="Sort tasks">${opt('due', 'Sort: due date', UI.sort)}${opt('priority', 'Sort: priority', UI.sort)}${opt('newest', 'Sort: newest', UI.sort)}</select>
+   <button class="ghost" data-act="clearF">Clear filters</button></div>
+  ${UI.loading ? '<div class="skel"></div><div class="skel"></div>' : list.length ? `<div class="board">${cols}</div>` :
+   `<div class="empty">${S.tasks.length ? 'No tasks match your search or filters.' : 'No tasks yet.'}<br><br><button class="primary" data-act="${S.tasks.length ? 'clearF' : 'newTask'}">${S.tasks.length ? 'Clear filters' : 'Create your first task'}</button></div>`}`;
+}
+function renderProjects() {
+  const q = UI.q.trim().toLowerCase();
+  const list = S.projects.filter(p => !q || p.name.toLowerCase().includes(q));
+  const cards = list.map(p => {
+    const ts = S.tasks.filter(t => t.projectId === p.id), d = ts.filter(t => t.status === 'done').length;
+    return `<div class="card"><div class="row"><h3>${esc(p.name)}</h3><span class="mu">${d}/${ts.length} done</span></div>
+    <div class="bar" style="margin:10px 0"><i style="width:${ts.length ? d / ts.length * 100 : 0}%"></i></div>
+    ${ts.length ? ts.map(t => `<div class="row" style="padding:3px 0"><span class="${t.status === 'done' ? 'mu' : ''}">${t.status === 'done' ? '✓ ' : ''}${esc(t.title)}</span><span class="pri ${t.priority}">${t.priority}</span></div>`).join('') : '<p class="mu">No tasks yet.</p>'}
+    <div class="acts" style="margin-top:10px">${mb('pTask', '+ Task', p.id)}${mb('pEdit', 'Rename', p.id)}${mb('pDel', 'Delete', p.id, 'danger')}</div></div>`; }).join('');
+  const loose = S.tasks.filter(t => !t.projectId).length;
+  $('#v-projects').innerHTML = `<div class="row"><h2>Projects</h2><button class="primary" data-act="pNew">+ New project</button></div>
+  ${list.length ? `<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">${cards}</div>` : `<div class="empty">${S.projects.length ? 'No project matches your search.' : 'No projects yet. Create one to group related tasks.'}</div>`}
+  <p class="mu">${loose} task${loose === 1 ? ' has' : 's have'} no project. Assign one with Edit.</p>`;
+}
+function renderSettings() {
+  const o = (v, l, c) => `<option value="${v}" ${v === c ? 'selected' : ''}>${l}</option>`;
+  $('#v-settings').innerHTML = `<h2>Settings</h2><div class="card set">
+   <label>Theme<select data-pref="theme">${o('dark', 'Obsidian dark', S.prefs.theme)}${o('light', 'Light', S.prefs.theme)}</select></label>
+   <label>Voice recognition language<select data-pref="lang">${o('en-IN', 'English (India)', S.prefs.lang)}${o('hi-IN', 'Hindi (हिन्दी)', S.prefs.lang)}${o('hinglish', 'Hinglish (Hindi + English mix)', S.prefs.lang)}</select></label>
+   <p class="mu" style="margin:0">Hinglish listens with the Indian-English engine, so your words appear in Roman letters. The browser listens in one language at a time.</p>
+   <label class="row" style="justify-content:flex-start"><input type="checkbox" data-pref="speak" ${S.prefs.speak ? 'checked' : ''}> Speak a short reply after each confirmed command</label>
+   <hr style="border:0;border-top:1px solid var(--ln);width:100%">
+   <div class="acts"><button class="ghost" data-act="export">Export data</button><button class="ghost" data-act="import">Import data</button><button class="ghost" data-act="reset">Reset sample data</button><button class="ghost" data-act="delUser">Delete this profile</button></div>
+   <p class="mu">Export saves a JSON backup of this profile. Import replaces everything in it. Install the app from your browser menu or the Install button when it appears.</p></div>`;
+}
+function renderFeed() {
+  $('#feedList').innerHTML = S.activity.slice(0, 14).map(a => `<li>${esc(a.text)}<small>${rel(a.time)}</small></li>`).join('') || '<li class="mu">No activity yet.</li>';
+}
+function render() {
+  if (!S) return;
+  document.documentElement.dataset.theme = S.prefs.theme;
+  renderDashboard(); renderTasks(); renderProjects(); renderFocus(); renderProfile(); renderSettings(); renderFeed(); renderExamples();
+}
+function setView(v) {
+  UI.view = v;
+  document.querySelectorAll('.view').forEach(s => s.hidden = s.id !== 'v-' + v);
+  document.querySelectorAll('#nav button').forEach(b => b.dataset.view === v ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'));
+  $('#app').classList.remove('open'); $('#menuBtn').setAttribute('aria-expanded', 'false'); scrollTo(0, 0);
+}
+
+/* ---------- 5. Forms & confirmations ---------- */
+function openForm(title, fields, onSave) {
+  $('#dlgForm').innerHTML = `<h3>${title}</h3>` + fields.map(f => `<label>${f.label}${f.type === 'select'
+    ? `<select name="${f.name}">${f.options.map(o => `<option value="${esc(o[0])}" ${o[0] === f.value ? 'selected' : ''}>${esc(o[1])}</option>`).join('')}</select>`
+    : `<input name="${f.name}" type="${f.type}" value="${esc(f.value || '')}" ${f.required ? 'required' : ''} maxlength="${f.type === 'date' ? 10 : 200}">`}</label>`).join('')
+    + '<div class="dlgbtn"><button type="button" class="ghost" data-close>Cancel</button><button class="primary">Save</button></div>';
+  $('#dlgForm').onsubmit = e => { e.preventDefault(); onSave(Object.fromEntries(new FormData($('#dlgForm')))); $('#dlg').close(); };
+  $('#dlg').showModal();
+}
+function confirmBox(msg, label, onYes) {
+  $('#dlgForm').innerHTML = `<h3>Are you sure?</h3><p>${esc(msg)}</p><div class="dlgbtn"><button type="button" class="ghost" data-close>Cancel</button><button class="primary danger">${label}</button></div>`;
+  $('#dlgForm').onsubmit = e => { e.preventDefault(); $('#dlg').close(); onYes(); };
+  $('#dlg').showModal();
+}
+function taskForm(t = {}, preset = {}) {
+  openForm(t.id ? 'Edit task' : 'New task', [
+    { name: 'title', label: 'Title', type: 'text', value: t.title, required: 1 },
+    { name: 'priority', label: 'Priority', type: 'select', value: t.priority || 'medium', options: [['high', 'High'], ['medium', 'Medium'], ['low', 'Low']] },
+    { name: 'due', label: 'Due date', type: 'date', value: t.due || '' },
+    { name: 'time', label: 'Due time (optional)', type: 'time', value: t.time || '' },
+    { name: 'repeat', label: 'Repeats', type: 'select', value: t.repeat || '', options: [['', 'Does not repeat'], ['daily', 'Every day'], ['weekly', 'Every week'], ['monthly', 'Every month']] },
+    { name: 'projectId', label: 'Project', type: 'select', value: t.projectId || preset.projectId || '', options: [['', 'No project'], ...S.projects.map(p => [p.id, p.name])] },
+    { name: 'status', label: 'Status', type: 'select', value: t.status || 'todo', options: [['todo', 'Pending'], ['doing', 'Active'], ['done', 'Completed']] }
+  ], d => { d.title = d.title.trim(); if (!d.title) return; t.id ? updateTask(t.id, d) : addTask(d); });
+}
+/* ---------- 6. Command parser (local, rule-based: NOT an AI model) ---------- */
+const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+let pending = null; // set when we asked "what should the task be called?"
+function parseDue(s) {
+  const m = s.match(/\b(?:due|by|on|for)?\s*(today|tonight|tomorrow|next week|(?:next |this )?(?:sunday|monday|tuesday|wednesday|thursday|friday|saturday)|in \d+ days?|\d{4}-\d{2}-\d{2})\b/i);
+  if (!m) return { date: '', rest: s };
+  const w = m[1].toLowerCase(); let date;
+  if (/today|tonight/.test(w)) date = addDays(0); else if (w === 'tomorrow') date = addDays(1); else if (w === 'next week') date = addDays(7);
+  else if (w.startsWith('in ')) date = addDays(parseInt(w.slice(3))); else if (/^\d/.test(w)) date = isNaN(new Date(w)) ? '' : w;
+  else date = addDays((DAYS.indexOf(w.split(' ').pop()) - new Date().getDay() + 7) % 7 || 7);
+  return { date, rest: s.replace(m[0], ' ') };
+}
+function parsePri(s) {
+  const m = s.match(/\b(?:(high|urgent|medium|low)[\s-]+priority|priority\s+(?:is\s+|of\s+)?(high|urgent|medium|low)|(urgent))\b/i);
+  if (!m) return { pri: '', rest: s };
+  const v = (m[1] || m[2] || m[3]).toLowerCase();
+  return { pri: v === 'urgent' ? 'high' : v, rest: s.replace(m[0], ' ') };
+}
+function findProject(name) {
+  const n = name.toLowerCase().trim();
+  return S.projects.find(p => p.name.toLowerCase() === n) || S.projects.find(p => p.name.toLowerCase().includes(n) || n.includes(p.name.toLowerCase()));
+}
+function parseProject(s) {
+  const l = s.toLowerCase();
+  for (const p of [...S.projects].sort((a, b) => b.name.length - a.name.length)) {
+    const n = p.name.toLowerCase(); if (!l.includes(n)) continue;
+    const re = new RegExp('\\b(?:(?:in|to|for|under|into)\\s+)?(?:the\\s+)?(?:project\\s+)?' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:\\s+project)?', 'i');
+    return { project: p, rest: s.replace(re, ' ') };
+  }
+  const m = s.match(/\b(?:in|to|for|under|into)\s+(?:the\s+)?project\s+([a-z0-9 ]+?)(?=\s+(?:due|by|on)\b|$)/i) || s.match(/\b(?:in|to|for|under)\s+(?:the\s+)?([a-z0-9]+(?: [a-z0-9]+)?)\s+project\b/i);
+  return m ? { unknown: m[1].trim(), rest: s.replace(m[0], ' ') } : { rest: s };
+}
+function cleanTitle(s) {
+  s = s.replace(/\s+/g, ' ').replace(/^\s*(?:a |an |the )?(?:new )?(?:task |todo |reminder )?\s*(?:to |called |named |titled |: |- )?\s*/i, '')
+    .replace(/[\s,.;:-]+$/, '').replace(/\s+(?:and|with|due|by|on|for|to|in)$/i, '').replace(/[\s,.;:-]+$/, '').trim();
+  return cap(s);
+}
+function parseTime(s) { // "at 5 pm", "17:30", "5 baje", plus "morning/evening" hints
+  const per = (s.match(/\b(morning|afternoon|evening|night)\b/i) || [])[1];
+  const m = s.match(/\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm|baje)\b/i) || s.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\b()/i) || s.match(/\b(\d{1,2}):(\d{2})\b()/i);
+  if (!m) return { time: '', rest: s };
+  let h = +m[1]; const mi = +(m[2] || 0), ap = (m[3] || '').toLowerCase();
+  if (h > 23 || mi > 59) return { time: '', rest: s };
+  const pm = ap === 'pm' ? true : ap === 'am' ? false : per ? /afternoon|evening|night/i.test(per) : (h >= 1 && h <= 6) || h === 12;
+  if (h <= 12) { if (pm && h < 12) h += 12; if (!pm && h === 12) h = 0; }
+  let rest = s.replace(m[0], ' '); if (per) rest = rest.replace(new RegExp('\\b' + per + '\\b', 'i'), ' ');
+  return { time: `${pad(h)}:${pad(mi)}`, rest };
+}
+function parseRepeat(s) { // "every monday", "daily", "every day"
+  const m = s.match(/\bevery\s+(day|week|month|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b|\b(daily|weekly|monthly)\b/i);
+  if (!m) return { repeat: '', rest: s };
+  const w = (m[1] || m[2]).toLowerCase();
+  const repeat = /^(day|daily)$/.test(w) ? 'daily' : /^(month|monthly)$/.test(w) ? 'monthly' : 'weekly';
+  return { repeat, rest: s.replace(m[0], ' ') + (DAYS.includes(w) ? ' ' + w : '') };
+}
+function makeCreate(draft, newProject) {
+  const pr = newProject ? `${newProject} (new)` : draft.projectId ? projName(draft.projectId) : 'None';
+  const when = draft.due ? new Date(draft.due + 'T00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) : 'no date';
+  return {
+    title: `Create task “${draft.title}”`,
+    details: [`Priority: ${draft.priority}`, `Due: ${when}${draft.time ? ' at ' + fmtTime(draft.time) : ''}`, ...(draft.repeat ? [`Repeats: ${draft.repeat}`] : []), `Project: ${pr}`],
+    run() { const pid = newProject ? addProject(newProject) : draft.projectId; addTask({ ...draft, projectId: pid }); }
+  };
+}
+function createPreview(body) {
+  let r = parseRepeat(body); const repeat = r.repeat;
+  r = parseDue(r.rest); let due = r.date;
+  r = parseTime(r.rest); const time = r.time;
+  r = parsePri(r.rest); const priority = r.pri || 'medium';
+  const pr = parseProject(r.rest), title = cleanTitle(pr.rest);
+  if (repeat && !due) due = addDays(0);
+  const draft = { title, priority, due, time, repeat, projectId: pr.project ? pr.project.id : '' };
+  if (!title) { pending = { draft }; return { ask: 'What should the task be called? Say or type the title.' }; }
+  if (pr.unknown) {
+    const nm = cap(pr.unknown);
+    return { ask: `I don’t have a project called “${nm}”. What should I do?`, options: [
+      { label: `Create “${nm}” and add the task`, run: () => showPreview(makeCreate(draft, nm), V.source) },
+      { label: 'Add the task without a project', run: () => showPreview(makeCreate(draft), V.source) }] };
+  }
+  return makeCreate(draft);
+}
+// Finds one task by words in its title; asks the user to choose if several match.
+function pick(q, pool, build) {
+  const words = q.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w && !['the', 'a', 'an', 'task', 'my'].includes(w));
+  let hits = words.length ? pool.filter(t => words.every(w => t.title.toLowerCase().includes(w))) : [];
+  const exact = hits.filter(t => t.title.toLowerCase() === q.toLowerCase().trim()); if (exact.length === 1) hits = exact;
+  if (!hits.length) return { error: `I couldn’t find a matching task for “${q}”.` };
+  if (hits.length === 1) return build(hits[0]);
+  return { ask: `“${q}” matches ${hits.length} tasks. Which one?`, options: hits.slice(0, 4).map(t => ({ label: t.title, run: () => showPreview(build(t), V.source) })) };
+}
+/* Hindi and Hinglish: common keywords are turned into the English form the parser already understands. */
+const HI_VERBS = [
+  ['add', /जोड़ दो|जोड़ो|जोड़ें|बनाओ|बनाइए|\bjod do\b|\bjodo\b|\bbanao\b|\bbana do\b/i],
+  ['complete', /पूरा कर दो|पूरा करो|पूरी करो|पूरा हो गया|खत्म करो|\bpoora kar do\b|\bpoora karo\b|\bpura karo\b|\bkhatam karo\b|\bho gaya\b/i],
+  ['find', /ढूंढो|ढूँढो|खोजो|दिखाओ|\bdhundho\b|\bdhoondo\b|\bkhojo\b|\bdikhao\b/i],
+  ['delete', /हटाओ|मिटाओ|\bhata do\b|\bhatao\b|\bmitao\b/i],
+  ['start', /शुरू करो|\bshuru karo\b/i]];
+const HI_WORDS = [
+  [/परसों|\bparso\b/gi, 'in 2 days'], [/(?<![\u0900-\u097F])कल(?![\u0900-\u097F])|\bkal\b/gi, 'tomorrow'], [/(?<![\u0900-\u097F])आज(?![\u0900-\u097F])|\baaj\b/gi, 'today'],
+  [/ज़रूरी|जरूरी|उच्च प्राथमिकता|\bzaroori\b|\bjaruri\b/gi, 'high priority'], [/कम प्राथमिकता/g, 'low priority'], [/मध्यम प्राथमिकता|सामान्य प्राथमिकता/g, 'medium priority'],
+  [/सोमवार|\bsomvar\b|\bsomwar\b/gi, 'monday'], [/मंगलवार|\bmangalvar\b|\bmangalwar\b/gi, 'tuesday'], [/बुधवार|\bbudhvar\b|\bbudhwar\b/gi, 'wednesday'],
+  [/गुरुवार|बृहस्पतिवार|\bguruvar\b|\bguruwar\b|\bveervar\b/gi, 'thursday'], [/शुक्रवार|\bshukravar\b|\bshukrawar\b/gi, 'friday'], [/शनिवार|\bshanivar\b|\bshaniwar\b/gi, 'saturday'], [/रविवार|\bravivar\b|\bitwar\b|\braviwar\b/gi, 'sunday'],
+  [/हर\s*रोज़?|\bhar\s*roz\b|(?<![\u0900-\u097F])रोज़?(?![\u0900-\u097F])|\broz\b/gi, 'every day'], [/(?<![\u0900-\u097F])हर(?![\u0900-\u097F])|\bhar\b/gi, 'every'],
+  [/बजे|\bbaje\b/gi, 'baje'], [/सुबह|\bsubah\b/gi, 'morning'], [/दोपहर|\bdopahar\b/gi, 'afternoon'], [/(?<![\u0900-\u097F])शाम(?![\u0900-\u097F])|\bshaam\b|\bsham\b/gi, 'evening'], [/(?<![\u0900-\u097F])रात(?![\u0900-\u097F])|\braat\b/gi, 'night'],
+  [/टास्क/g, 'task'], [/प्रोजेक्ट/g, 'project'], [/(?<![\u0900-\u097F])में(?![\u0900-\u097F])|\bmein\b/gi, 'in'], [/(?<![\u0900-\u097F])को(?![\u0900-\u097F])|\bko\b/gi, ''], [/\bkarna\b|\bkaro\b|करना|करनी/gi, '']];
+function hindiToEnglish(text) {
+  let verb = '', changed = false;
+  for (const [v, re] of HI_VERBS) if (re.test(text)) { verb = v; changed = true; text = text.replace(re, ' '); break; }
+  for (const [re, en] of HI_WORDS) { const t2 = text.replace(re, en); if (t2 !== text) changed = true; text = t2; }
+  text = text.replace(/\s+/g, ' ').trim();
+  if (!verb && changed) { // Hinglish often puts an English verb last: "kal 5 baje meeting add karo"
+    const m = text.match(/\b(add|create|complete|finish|delete|remove|start|find|search|show)\b/i);
+    if (m && m.index > 0) { verb = m[1]; text = text.replace(m[0], ' ').replace(/\s+/g, ' ').trim(); }
+  }
+  return verb ? `${verb} ${text}` : text;
+}
+
+function interpret(raw) {
+  const text = hindiToEnglish(raw.trim()).replace(/[.!?।]+$/, ''); let m;
+  if (pending) { const d = pending.draft; pending = null; d.title = cleanTitle(raw.trim().replace(/[.!?।]+$/, '')); return makeCreate(d); }
+  if (m = text.match(/^(?:set|change|make|mark)\s+(.+?)\s+(?:to\s+|as\s+)?(high|medium|low|urgent)(?:\s+priority)?$/i)) {
+    const pri = m[2].toLowerCase() === 'urgent' ? 'high' : m[2].toLowerCase();
+    return pick(m[1], S.tasks, t => ({ title: `Set “${t.title}” to ${pri} priority`, run() { updateTask(t.id, { priority: pri }); } }));
+  }
+  if (m = text.match(/^(?:complete|finish|finished|mark|check off|tick off)\s+(.+)$/i))
+    return pick(m[1].replace(/\s+(?:as\s+)?(?:done|complete|completed|finished)$/i, ''), S.tasks.filter(t => t.status !== 'done'), t => ({ title: `Complete “${t.title}”`, run() { setStatus(t.id, 'done'); } }));
+  if (m = text.match(/^(?:start|begin)\s+(.+)$/i))
+    return pick(m[1], S.tasks.filter(t => t.status === 'todo'), t => ({ title: `Start “${t.title}”`, run() { setStatus(t.id, 'doing'); } }));
+  if (m = text.match(/^(?:delete|remove)\s+(?:the\s+)?(?:task\s+)?(.+)$/i))
+    return pick(m[1], S.tasks, t => ({ title: `Delete “${t.title}”`, danger: true, details: ['This cannot be undone.'], run() { removeTask(t.id); } }));
+  if (m = text.match(/^move\s+(.+?)\s+(?:in)?to\s+(?:the\s+)?(?:project\s+)?(.+?)(?:\s+project)?$/i)) {
+    const p = findProject(m[2]);
+    if (!p) return { error: `There’s no project called “${m[2]}”. Your projects: ${S.projects.map(x => x.name).join(', ') || 'none yet'}.` };
+    return pick(m[1], S.tasks, t => ({ title: `Move “${t.title}” to ${p.name}`, run() { updateTask(t.id, { projectId: p.id }); } }));
+  }
+  if (m = text.match(/^(?:find|search(?: for)?|show|list|filter)\s+(.+)$/i)) {
+    const q = m[1], pri = q.match(/\b(high|medium|low|urgent)[\s-]+priority\b/i);
+    if (/^(?:all|everything)(?: tasks)?$/i.test(q)) return { title: 'Show all tasks', noUndo: true, run() { Object.assign(UI, { q: '', fPri: '', fProj: '' }); $('#search').value = ''; setView('tasks'); commit(); } };
+    if (pri) { const v = pri[1].toLowerCase() === 'urgent' ? 'high' : pri[1].toLowerCase(); return { title: `Show ${v} priority tasks`, noUndo: true, run() { Object.assign(UI, { q: '', fPri: v }); $('#search').value = ''; setView('tasks'); commit(); } }; }
+    const term = q.replace(/\b(?:tasks?|for|my|the|about)\b/gi, ' ').replace(/\s+/g, ' ').trim();
+    const count = S.tasks.filter(t => t.title.toLowerCase().includes(term.toLowerCase())).length;
+    return { title: `Search tasks for “${term}”`, details: [`${count} matching task${count === 1 ? '' : 's'} right now`], noUndo: true, run() { Object.assign(UI, { q: term, fPri: '', fProj: '' }); $('#search').value = term; setView('tasks'); commit(); } };
+  }
+  if (m = text.match(/^(?:add|create|new|make|schedule|remind me to)\s+(.+)$/i)) return createPreview(m[1]);
+  return { ask: `I wasn’t sure what you meant by “${text}”. Which should I do?`, options: [
+    { label: `Add “${cap(text)}” as a new task`, run: () => showPreview(createPreview(text), V.source) },
+    { label: `Search tasks for “${text}”`, run: () => showPreview(interpret('find ' + text), V.source) }] };
+}
+
+/* ---------- 7. Voice command center ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const V = { rec: null, final: '', timer: null, preview: null, source: 'typed', err: false, undo: null };
+const REC = { 'en-IN': 'en-IN', 'hi-IN': 'hi-IN', hinglish: 'en-IN' }; // Hinglish uses the Indian-English engine
+const SRC = { voice: 'Heard by your microphone', typed: 'Typed command', demo: 'Simulated demo (no microphone, no AI)' };
+function setVoice(state, msg) {
+  $('#mic').dataset.state = state; $('#vBadge').textContent = state; $('#vBadge').dataset.s = state;
+  $('#vState').textContent = msg || { ready: 'Ready. Tap the mic and speak.', listening: 'Listening…', processing: 'Reading your command…', success: 'Done.', error: 'Something went wrong.' }[state];
+}
+function showTranscript(text, src) { $('#transcript').textContent = text; $('#tSrc').textContent = src; $('#tSrc').className = src === SRC.demo ? 'sim' : ''; }
+function clearPreview() { V.preview = null; $('#preview').innerHTML = ''; }
+function showPreview(p, source) {
+  V.preview = p; V.source = source;
+  const box = $('#preview');
+  if (p.error) { setVoice('error', p.error); box.innerHTML = `<div class="prev err"><b>Couldn’t do that</b><span>${esc(p.error)}</span></div>`; return; }
+  setVoice('ready', p.ask ? 'I need one detail before continuing.' : 'Command understood. Confirm or cancel below.');
+  box.innerHTML = `<div class="prev"><small class="mu">${p.ask ? 'Clarification needed' : 'Command preview'} · ${SRC[source] || ''} · read by the local parser</small>
+   <b>${esc(p.ask || p.title)}</b>${p.details ? `<ul>${p.details.map(d => `<li>${esc(d)}</li>`).join('')}</ul>` : ''}
+   <div class="acts">${(p.options || []).map((o, i) => `<button class="ghost" data-opt="${i}">${esc(o.label)}</button>`).join('')}
+   ${p.ask ? '' : `<button class="primary ${p.danger ? 'danger' : ''}" data-act="vConfirm">Confirm</button>`}<button class="ghost" data-act="vCancel">Cancel</button></div></div>`;
+  box.querySelector('button')?.focus();
+}
+function handleText(text, source) {
+  text = text.trim(); if (!text) return;
+  V.source = source; showTranscript(text, SRC[source]); clearPreview(); setVoice('processing');
+  setTimeout(() => {
+    try { showPreview(interpret(text), source); }
+    catch (e) { console.error(e); setVoice('error', 'I couldn’t read that command. Try rephrasing it.'); }
+  }, reduced ? 0 : 450);
+}
+function speak(msg) {
+  if (!S.prefs.speak || !('speechSynthesis' in window)) return;
+  const u = new SpeechSynthesisUtterance(msg); u.lang = 'en-IN'; speechSynthesis.cancel(); speechSynthesis.speak(u);
+}
+function confirmPreview() {
+  const p = V.preview; if (!p || !p.run) return;
+  clearPreview(); pending = null;
+  const snap = JSON.stringify({ tasks: S.tasks, projects: S.projects });
+  try {
+    p.run(); setVoice('success', p.title + ' ✓'); toast(p.title); speak('Done. ' + p.title);
+    if (p.noUndo) clearUndo(); else { V.undo = { snap, label: p.title }; $('#undoBar').innerHTML = `<button class="ghost" data-act="undo">↶ Undo: ${esc(p.title)}</button>`; }
+  } catch (e) { console.error(e); setVoice('error', 'That action failed.'); toast('That action failed', 'error'); return; }
+  setTimeout(() => { if ($('#mic').dataset.state === 'success') setVoice('ready'); }, 3000);
+}
+function clearUndo() { V.undo = null; $('#undoBar').innerHTML = ''; }
+function undoLast() { // restores tasks and projects to just before the last confirmed command
+  if (!V.undo) return; const d = JSON.parse(V.undo.snap), label = V.undo.label;
+  S.tasks = d.tasks; S.projects = d.projects; clearUndo(); log(`Undid: ${label}`); commit(); toast('Undone'); setVoice('ready', 'Undone. Your tasks are back as they were.');
+}
+function cancelPreview() { clearPreview(); pending = null; setVoice('ready', 'Cancelled. Nothing was changed.'); }
+function stopSim() { clearInterval(V.timer); V.timer = null; }
+function startListening() {
+  setView('voice');
+  if (V.rec) { V.rec.stop(); return; }
+  if (!SR) { setVoice('error', 'Speech recognition isn’t supported in this browser. Use Chrome, Edge or Safari, or type a command below.'); toast('Voice input not supported here', 'error'); return; }
+  stopSim(); clearPreview(); V.final = ''; V.err = false;
+  const r = new SR(); V.rec = r; r.lang = REC[S.prefs.lang] || 'en-IN'; r.interimResults = true; r.continuous = false;
+  r.onstart = () => { setVoice('listening'); showTranscript('Listening…', SRC.voice); };
+  r.onresult = e => { let t = ''; for (const res of e.results) t += res[0].transcript; V.final = t; showTranscript(t, SRC.voice); };
+  r.onerror = e => {
+    const msgs = { 'not-allowed': 'Microphone permission was denied. Allow it in your browser’s site settings, or type a command.', 'service-not-allowed': 'Microphone access is blocked for this page. Open it from localhost or https.', 'no-speech': 'I didn’t hear anything. Tap the mic and try again.', 'audio-capture': 'No microphone was found.', 'network': 'The speech service needs an internet connection.' };
+    if (e.error === 'aborted') return;
+    V.err = true; setVoice('error', msgs[e.error] || 'Speech error: ' + e.error);
+  };
+  r.onend = () => { V.rec = null; if (V.err) return; if (V.final) handleText(V.final, 'voice'); else setVoice('ready', 'No speech captured. Tap the mic to try again.'); };
+  try { r.start(); } catch (e) { V.rec = null; setVoice('error', 'Could not start the microphone.'); }
+}
+const DEMO = ['Add a high priority task finish pitch slides tomorrow at 5 pm', 'Add team meeting every monday at 10 am', 'Find pitch', 'Complete finish pitch slides'];
+let demoI = 0;
+function runDemo() {
+  if (V.rec) V.rec.abort(); stopSim(); clearPreview(); setView('voice');
+  const phrase = DEMO[demoI++ % DEMO.length]; let i = 0;
+  setVoice('listening', 'Simulated listening. No microphone is being used.');
+  V.timer = setInterval(() => {
+    i += reduced ? phrase.length : 2; showTranscript(phrase.slice(0, i), SRC.demo);
+    if (i >= phrase.length) { stopSim(); handleText(phrase, 'demo'); }
+  }, 35);
+}
+const EXAMPLES_HI = ['मीटिंग की तैयारी कल शाम 5 बजे ज़रूरी जोड़ो', 'हर सोमवार जिम जोड़ो', 'Polish README पूरा करो', 'demo video ढूंढो', 'Build Excel pivot dashboard हटाओ'];
+const EXAMPLES_HG = ['kal shaam 5 baje meeting add karo', 'har somvar gym jodo', 'roz subah 6 baje padhai jodo', 'Polish README poora karo', 'demo video dhundho'];
+const EXAMPLES = ['Add finish report high priority tomorrow at 5 pm', 'Add gym every monday at 7 am', 'Create task call mentor in Study Plan project due friday', 'Complete rehearse the pitch', 'Move update LinkedIn headline to Hackathon Demo', 'Set practice SQL joins to high priority', 'Find portfolio', 'Delete build Excel pivot dashboard'];
+
+/* ---------- 8. Wiring ---------- */
+document.addEventListener('click', e => {
+  const t = e.target;
+  if (t.closest('[data-close]')) return $('#dlg').close();
+  const nav = t.closest('#nav button'); if (nav) return setView(nav.dataset.view);
+  const opt = t.closest('[data-opt]'); if (opt) return V.preview.options[+opt.dataset.opt].run();
+  const ex = t.closest('#examples button'); if (ex) { $('#cmdInput').value = ex.textContent; return $('#cmdInput').focus(); }
+  const b = t.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act, id = b.dataset.id, task = S.tasks.find(x => x.id === id), proj = S.projects.find(x => x.id === id);
+  if (!['vConfirm', 'vCancel', 'undo', 'goto', 'copyReport', 'fMins', 'fToggle', 'fReset'].includes(act)) clearUndo(); // manual edits make "undo last command" unsafe
+  ({
+    start: () => setStatus(id, 'doing'),
+    toggle: () => setStatus(id, task.status === 'done' ? 'todo' : 'done'),
+    edit: () => taskForm(task),
+    del: () => confirmBox(`Delete “${task.title}”? This can’t be undone.`, 'Delete task', () => { removeTask(id); toast('Task deleted'); }),
+    newTask: () => taskForm(),
+    goto: () => setView(id),
+    clearF: () => { Object.assign(UI, { q: '', fPri: '', fProj: '' }); $('#search').value = ''; renderTasks(); renderProjects(); },
+    pNew: () => openForm('New project', [{ name: 'name', label: 'Project name', type: 'text', required: 1 }], d => { if (d.name.trim()) { addProject(d.name); toast('Project created'); } }),
+    pEdit: () => openForm('Rename project', [{ name: 'name', label: 'Project name', type: 'text', value: proj.name, required: 1 }], d => d.name.trim() && renameProject(id, d.name.trim())),
+    pTask: () => taskForm({}, { projectId: id }),
+    pDel: () => confirmBox(`Delete the project “${proj.name}”? Its tasks stay in your pipeline without a project.`, 'Delete project', () => { removeProject(id); toast('Project deleted'); }),
+    vConfirm: confirmPreview, vCancel: cancelPreview, undo: undoLast,
+    fMins: () => { F.mins = +id; F.left = F.mins * 60; renderFocus(); },
+    fToggle: toggleFocus, fReset: () => { stopFocus(); renderFocus(); },
+    copyReport: () => (navigator.clipboard ? navigator.clipboard.writeText(reportText()) : Promise.reject()).then(() => toast('Weekly report copied'), () => toast('Copying isn’t available in this browser', 'error')),
+    signOut: signOut,
+    delUser: () => confirmBox(`Delete the profile “${S.profile.name}” and all its tasks from this device? This can’t be undone.`, 'Delete profile', deleteUser),
+    pfPhoto: () => $('#photoFile').click(),
+    pfPhotoDel: () => { S.profile.photo = ''; log('Profile photo removed'); commit(); },
+    pfEdit: () => openForm('Edit profile', [
+      { name: 'name', label: 'Name', type: 'text', value: S.profile.name, required: 1 },
+      { name: 'headline', label: 'Headline (for example: Teacher, Student, Designer)', type: 'text', value: S.profile.headline },
+      { name: 'college', label: 'School, college or workplace', type: 'text', value: S.profile.college },
+      { name: 'location', label: 'Location', type: 'text', value: S.profile.location },
+      { name: 'skills', label: 'Skills (comma separated)', type: 'text', value: S.profile.skills },
+      { name: 'bio', label: 'About you', type: 'text', value: S.profile.bio },
+      { name: 'github', label: 'GitHub link (starts with https://)', type: 'text', value: S.profile.github },
+      { name: 'linkedin', label: 'LinkedIn link (starts with https://)', type: 'text', value: S.profile.linkedin },
+      { name: 'portfolio', label: 'Portfolio link (starts with https://)', type: 'text', value: S.profile.portfolio },
+      { name: 'resume', label: 'Resume link (starts with https://)', type: 'text', value: S.profile.resume }
+    ], d => {
+      S.profile = cleanProfile({ ...S.profile, ...d });
+      const us = getUsers(), u = us.find(x => x.id === CUR); if (u) { u.name = S.profile.name; localStorage.setItem(K.users, JSON.stringify(us)); }
+      log('Profile updated'); commit(); toast('Profile saved');
+    }),
+    export: () => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' }));
+      a.download = `echoworkspace-${S.profile.name.replace(/\W+/g, '-').toLowerCase()}-${iso(new Date())}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); toast('Backup downloaded');
+    },
+    import: () => $('#importFile').click(),
+    reset: () => confirmBox('Replace all your tasks, projects and activity with the sample data? Your profile and settings stay.', 'Reset data', () => {
+      const keep = { profile: S.profile, prefs: S.prefs }; S = seed(keep.profile.name); S.profile = keep.profile; S.prefs = keep.prefs;
+      UI.q = UI.fPri = UI.fProj = ''; $('#search').value = ''; log('Sample data restored'); commit(); toast('Sample data restored');
+    })
+  })[act]?.();
+});
+
+document.addEventListener('change', e => {
+  const f = e.target.dataset.f, p = e.target.dataset.pref;
+  if ('ft' in e.target.dataset) F.task = e.target.value;
+  if (f) { UI[f] = e.target.value; renderTasks(); $('#' + e.target.id)?.focus(); }
+  if (p) { S.prefs[p] = e.target.type === 'checkbox' ? e.target.checked : e.target.value; commit(); toast('Setting saved'); }
+});
+$('#importFile').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = () => {
+    let d = null; try { d = sanitize(JSON.parse(r.result)); } catch (x) { /* handled below */ }
+    if (!d) toast('That file isn’t a valid EchoWorkspace backup', 'error');
+    else confirmBox(`Import ${d.tasks.length} tasks and ${d.projects.length} projects? This replaces your current data.`, 'Import', () => { S = d; log('Data imported from backup'); commit(); toast('Backup imported'); });
+  };
+  r.readAsText(file); e.target.value = '';
+});
+$('#mic').onclick = startListening;
+$('#topMic').onclick = startListening;
+$('#demoBtn').onclick = runDemo;
+$('#newTask').onclick = () => taskForm();
+$('#cmdForm').onsubmit = e => { e.preventDefault(); const i = $('#cmdInput'); if (V.rec) V.rec.abort(); stopSim(); handleText(i.value, 'typed'); i.value = ''; };
+$('#search').addEventListener('input', e => { UI.q = e.target.value; if (UI.view !== 'projects') setView('tasks'); renderTasks(); renderProjects(); });
+$('#menuBtn').onclick = () => {
+  const app = $('#app'), wide = matchMedia('(min-width:900px)').matches;
+  app.classList.toggle(wide ? 'collapsed' : 'open');
+  $('#menuBtn').setAttribute('aria-expanded', String(wide ? !app.classList.contains('collapsed') : app.classList.contains('open')));
+};
+$('#scrim').onclick = () => $('#app').classList.remove('open');
+$('#cmdInput').placeholder = SR ? 'Or type a command, e.g. add call mentor tomorrow' : 'Voice isn’t supported here. Type a command, e.g. add call mentor tomorrow';
+
+
+// Login, profile photo, install prompt, service worker
+$('#loginForm').onsubmit = e => { e.preventDefault(); createUser($('#loginName').value, $('#loginSample').checked); };
+$('#loginUsers').addEventListener('click', e => { const b = e.target.closest('[data-login]'); if (b) signIn(b.dataset.login); });
+$('#photoFile').addEventListener('change', e => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file || !/^image\//.test(file.type)) return toast('Please choose an image file', 'error');
+  const img = new Image(), url = URL.createObjectURL(file);
+  img.onload = () => { // crop to a square and shrink to 256px so it saves small
+    const c = document.createElement('canvas'), n = 256, m = Math.min(img.width, img.height); c.width = c.height = n;
+    c.getContext('2d').drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, n, n); URL.revokeObjectURL(url);
+    S.profile.photo = c.toDataURL('image/jpeg', 0.82); log('Profile photo updated'); commit(); toast('Photo saved');
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); toast('Could not read that image', 'error'); };
+  img.src = url;
+});
+let installEvt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('#installBtn').hidden = false; });
+$('#installBtn').onclick = async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; $('#installBtn').hidden = true; };
+addEventListener('appinstalled', () => { $('#installBtn').hidden = true; toast('EchoWorkspace installed'); });
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {}); // offline support
+setInterval(() => { if (S) { renderFeed(); if (!UI.loading && UI.view === 'dashboard') renderDashboard(); } }, 60000); // keeps greeting and "2 min ago" fresh
+document.addEventListener('visibilitychange', () => { if (S && !document.hidden) renderDashboard(); });
+
+// Start: migrate the old single-user data once, then resume the last user or show the login screen
+(function boot() {
+  let users = getUsers();
+  if (!users.length) {
+    const d = sanitize(readJSON(K.old, null), 'Friend');
+    if (d) { try { const u = { id: uid(), name: d.profile.name }; localStorage.setItem(K.users, JSON.stringify([u])); localStorage.setItem(K.data(u.id), JSON.stringify(d)); localStorage.setItem(K.cur, u.id); } catch (e) { /* storage blocked */ } users = getUsers(); }
+  }
+  const cur = localStorage.getItem(K.cur);
+  if (cur && users.some(u => u.id === cur)) { UI.loading = true; signIn(cur); setTimeout(() => { UI.loading = false; render(); }, reduced ? 0 : 400); }
+  else showLogin();
+})();
+</script>
+</body>
+</html>
