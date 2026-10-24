@@ -1,6 +1,6 @@
 // EchoWorkspace AI service worker: caches the app files so it opens offline.
-// Change CACHE (for example to 'echoworkspace-v2') whenever you update index.html.
-const CACHE = 'echoworkspace-v1';
+// Change CACHE (for example to 'echoworkspace-v3') whenever you update index.html.
+const CACHE = 'echoworkspace-v3';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {
